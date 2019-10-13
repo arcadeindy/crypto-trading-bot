@@ -1,0 +1,119 @@
+diff --git a/node_modules/binance-api-node/dist/http-client.js b/node_modules/binance-api-node/dist/http-client.js
+index 6bdf565..287407a 100644
+--- a/node_modules/binance-api-node/dist/http-client.js
++++ b/node_modules/binance-api-node/dist/http-client.js
+@@ -95,10 +95,11 @@ var checkParams = function checkParams(name, payload) {
+  */
+ var publicCall = function publicCall(_ref) {
+   var base = _ref.base;
++  var apiPath = _ref.apiPath || 'api';
+   return function (path, data) {
+     var method = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'GET';
+     var headers = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
+-    return sendResult(fetch(base + '/api' + path + makeQueryString(data), {
++    return sendResult(fetch(base + '/' + apiPath + path + makeQueryString(data), {
+       method: method,
+       json: true,
+       headers: headers
+@@ -167,7 +168,7 @@ var privateCall = function privateCall(_ref3) {
+ 
+       var newData = noExtra ? data : _extends({}, data, { timestamp: timestamp, signature: signature });
+ 
+-      return sendResult(fetch('' + base + (path.includes('/wapi') ? '' : '/api') + path + (noData ? '' : makeQueryString(newData)), {
++      return sendResult(fetch('' + base + (path.includes('/wapi') || path.includes('/sapi') ? '' : '/api') + path + (noData ? '' : makeQueryString(newData)), {
+         method: method,
+         headers: { 'X-MBX-APIKEY': apiKey },
+         json: true
+@@ -316,6 +317,31 @@ exports.default = function (opts) {
+     openOrders: function openOrders(payload) {
+       return privCall('/v3/openOrders', payload);
+     },
++
++    marginAllOrders: function allOrders(payload) {
++      return privCall('/sapi/v1/margin/allOrders', payload);
++    },
++
++    marginOrder: function order(payload) {
++      return _order(privCall, payload, '/sapi/v1/margin/order');
++    },
++
++    marginCancelOrder: function cancelOrder(payload) {
++      return privCall('/sapi/v1/margin/order', payload, 'DELETE');
++    },
++
++    marginOpenOrders: function marginOpenOrders(payload) {
++      return privCall('/sapi/v1/margin/openOrders', payload);
++    },
++
++    marginAccountInfo: function accountInfo(payload) {
++      return privCall('/sapi/v1/margin/account', payload);
++    },
++
++    marginMyTrades: function myTrades(payload) {
++      return privCall('/sapi/v1/margin/myTrades', payload);
++    },
++
+     allOrders: function allOrders(payload) {
+       return privCall('/v3/allOrders', payload);
+     },
+@@ -356,6 +382,16 @@ exports.default = function (opts) {
+     },
+     closeDataStream: function closeDataStream(payload) {
+       return privCall('/v1/userDataStream', payload, 'DELETE', false, true);
++    },
++
++    marginGetDataStream: function marginGetDataStream() {
++      return privCall('/sapi/v1/userDataStream', null, 'POST', true);
++    },
++    marginKeepDataStream: function marginKeepDataStream(payload) {
++      return privCall('/sapi/v1/userDataStream', payload, 'PUT', false, true);
++    },
++    marginCloseDataStream: function marginCloseDataStream(payload) {
++      return privCall('/sapi/v1/userDataStream', payload, 'DELETE', false, true);
+     }
+   };
+ };
+\ No newline at end of file
+diff --git a/node_modules/binance-api-node/dist/websocket.js b/node_modules/binance-api-node/dist/websocket.js
+index b688222..23da985 100644
+--- a/node_modules/binance-api-node/dist/websocket.js
++++ b/node_modules/binance-api-node/dist/websocket.js
+@@ -333,12 +333,12 @@ var keepStreamAlive = exports.keepStreamAlive = function keepStreamAlive(method,
+   return method({ listenKey: listenKey });
+ };
+ 
+-var user = function user(opts) {
++var user = function user(opts, margin) {
+   return function (cb) {
+     var _httpMethods = (0, _httpClient2.default)(opts),
+-        getDataStream = _httpMethods.getDataStream,
+-        keepDataStream = _httpMethods.keepDataStream,
+-        closeDataStream = _httpMethods.closeDataStream;
++        getDataStream = margin === true ? _httpMethods.marginGetDataStream : _httpMethods.getDataStream,
++        keepDataStream = margin === true ? _httpMethods.marginKeepDataStream : _httpMethods.keepDataStream,
++        closeDataStream = margin === true ? _httpMethods.marginCloseDataStream : _httpMethods.closeDataStream
+ 
+     var currentListenKey = null;
+     var int = null;
+@@ -421,6 +421,7 @@ exports.default = function (opts) {
+     aggTrades: aggTrades,
+     ticker: ticker,
+     allTickers: allTickers,
+-    user: user(opts)
++    user: user(opts),
++    marginUser: user(opts, true)
+   };
+ };
+\ No newline at end of file
+diff --git a/node_modules/binance-api-node/index.d.ts b/node_modules/binance-api-node/index.d.ts
+index 0f60873..47eb683 100644
+--- a/node_modules/binance-api-node/index.d.ts
++++ b/node_modules/binance-api-node/index.d.ts
+@@ -194,6 +194,7 @@ declare module 'binance-api-node' {
+         trades: (pairs: string | string[], callback: (trade: Trade) => void) => Function;
+         aggTrades: (pairs: string | string[], callback: (trade: Trade) => void) => Function;
+         user: (callback: (msg: OutboundAccountInfo | ExecutionReport) => void) => Function;
++        marginUser: (callback: (msg: OutboundAccountInfo | ExecutionReport) => void) => Function;
+     }
+ 
+     export type CandleChartInterval =
